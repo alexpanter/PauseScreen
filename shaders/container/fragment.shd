@@ -1,0 +1,18 @@
+#version 330 core
+
+in vec2 GS_texCoord;
+
+out vec4 color;
+
+uniform sampler2D U_texture0;
+uniform sampler2D U_texture1;
+
+uniform float mixer;
+
+void main() {
+    vec4 tex0 = texture(U_texture0, vec2(GS_texCoord.x, 1.0f - GS_texCoord.y));
+    vec4 tex1 = texture(U_texture1, GS_texCoord * vec2(1.0f, -1.0f));
+    color = mix(tex0 * vec4(0.8f, (1.0f - mixer), 0.8f, 1.0f),
+                tex1 * vec4(mixer, 0.75f, mixer / 2.0f, mixer),
+                mixer / 3.0f * 2.0f);
+}

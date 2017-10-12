@@ -1,0 +1,19 @@
+#version 330 core
+
+layout (triangles) in;
+layout (triangle_strip) out;
+layout (max_vertices = 6) out;
+
+in vec2[] VS_texCoord;
+out vec2 GS_texCoord;
+
+void main()
+{
+    for(int i = 0; i < gl_in.length(); i++)
+    {
+        gl_Position = gl_in[i].gl_Position;
+        GS_texCoord = VS_texCoord[i];
+        EmitVertex();
+    }
+    EndPrimitive();
+}
