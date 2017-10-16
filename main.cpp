@@ -13,6 +13,10 @@
 // SOIL
 #include <SOIL/SOIL.h>
 
+// FREETYPE
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #include <iostream>
 #include <string.h>
 #include <string>
