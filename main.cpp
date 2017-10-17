@@ -68,6 +68,7 @@ GLuint VAO, VBO, EBO;
 GLuint FT_VAO, FT_VBO;
 
 std::string text_text = "TEXT";
+std::string text_logo = "(C) LearnOpenGL.com";
 
 // STATE MACHINE (could / should probably encapsulate this in a struct)
 bool wrongPasswordStatus;
@@ -171,6 +172,7 @@ void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
     glUniform3f(glGetUniformLocation(shader, "textColor"), color.x, color.y, color.z);
     glUniformMatrix4fv(glGetUniformLocation(shader, "projection"), 1, GL_FALSE,
                        glm::value_ptr(projection));
+    glActiveTexture(GL_TEXTURE0);
     glBindVertexArray(FT_VAO);
 
     // iterate through all characters
@@ -181,22 +183,30 @@ void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
 
         GLfloat xpos = coords.x + ch.Bearing.x * scale;
         GLfloat ypos = coords.y - (ch.Size.y - ch.Bearing.y) * scale;
-
         GLfloat w = ch.Size.x * scale;
         GLfloat h = ch.Size.y * scale;
+
+        // std::string msg = "const iterator, *c: '";
+        // msg += *c;
+        // msg += "', pos(x,y): (";
+        // msg += xpos;
+        // msg += ",";
+        // msg += ypos;
+        // msg += ")";
+        // PRINT_MSG_COUT(msg);
 
         // update VBO for each character
         GLfloat vertices[6][4] {
             { xpos,     ypos + h,   0.0f, 0.0f },
             { xpos,     ypos,       0.0f, 1.0f },
             { xpos + w, ypos,       1.0f, 1.0f },
+
             { xpos,     ypos + h,   0.0f, 0.0f },
             { xpos + w, ypos,       1.0f, 1.0f },
             { xpos + w, ypos + h,   1.0f, 0.0f }
         };
 
         // render glyph texture over quad
-        glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, ch.TextureID);
         glUniform1i(glGetUniformLocation(shader, "text"), ch.TextureID);
 
@@ -210,7 +220,7 @@ void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
 
         // advance cursors for next glyph (note: advance is number of 1/64 pixels)
         // bitshift by 6 to get value in pixels (2^6 = 64)
-        coords.x += (ch.Advance >> 6) * scale;
+        coords.x += ((GLfloat)(ch.Advance >> 6)) * scale;
     }
     // unbind
     glBindVertexArray(0);
@@ -352,9 +362,11 @@ int main()
 
 
     // vertex attributes (for fonts)
+    glEnable(GL_CULL_FACE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    // glm::ortho assumes (0,0) is at the bottom-left of the screen!
     projection = glm::ortho(0.0f, (GLfloat)win->width,
                             0.0f, (GLfloat)win->height);
 
@@ -405,6 +417,18 @@ int main()
     glBindVertexArray(0);
 
 
+    glClearColor(0.01f, 0.01f, 0.01f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
+        //         std::string& text, glm::vec2 coords, GLfloat scale, glm::vec3 color)
+        RenderText(shader_fonts, Characters, text_text, glm::vec2(25.0f, 25.0f),
+                   1.0f, glm::vec3(0.5f, 0.8f, 0.2f));
+        RenderText(shader_fonts, Characters, text_logo, glm::vec2(540.0f, 570.0f),
+                   0.5f, glm::vec3(0.3, 0.7f, 0.9f));
+
+        glfwSwapBuffers(win->window);
+
     while(!glfwWindowShouldClose(win->window))
     {
         // glUseProgram(shader_program);
@@ -418,21 +442,6 @@ int main()
         // {
         //     break;
         // }
-
-        
-
-        glClearColor(0.01f, 0.01f, 0.01f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        // void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
-        //         std::string& text, glm::vec2 coords, GLfloat scale, glm::vec3 color)
-        std::string str = "(C) LearnOpenGL.com";
-        RenderText(shader_fonts, Characters, text_text, glm::vec2(25.0f, 25.0f),
-                   1.0f, glm::vec3(0.5f, 0.8f, 0.2f));
-        RenderText(shader_fonts, Characters, str, glm::vec2(540.0f, 570.0f),
-                   0.5f, glm::vec3(0.3, 0.7f, 0.9f));
-
-        glfwSwapBuffers(win->window);
 
         glfwPollEvents();
         // glfwWaitEvents(); // puts the main thread to sleep

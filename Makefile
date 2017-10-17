@@ -3,7 +3,8 @@ GCC=g++
 LINK=-lGLEW -lGL -lGLU -lglfw3 -lX11 -lXxf86vm -lXrandr -lpthread -lXi -ldl -lXinerama -lXcursor
 LINKSOIL=-lSOIL -limage_helper -limage_DXT -lstb_image_aug
 FREETYPE_LINK=-lfreetype
-FREETYPE_PATH=-I/usr/include/freetype2/
+#FREETYPE_PATH=-I/usr/include/freetype2/
+FREETYPE_PATH=`freetype-config --cflags --libs`
 
 # this: `-ldl -lXinerama -lXcursor`
 # might also need to be added, if getting undefined references to 'dlclose'
