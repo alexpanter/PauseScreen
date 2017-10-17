@@ -9,6 +9,7 @@
 
 // GLM
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 // SOIL
 #include <SOIL/SOIL.h>
@@ -17,18 +18,17 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+// STANDARD
 #include <iostream>
 #include <string.h>
 #include <string>
+#include <map>
 
-// local includes (static linking or not)
+// CUSTOM
 #include "shaders.hpp"
 #include "window.hpp"
 #include "texture.hpp"
 
-
-// FUNCTION PROTOTYPES:
-void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
 
 
 // VERTEX DATA
@@ -58,10 +58,21 @@ Texture* tex1;
 
 // buffer objects
 GLuint VAO, VBO, EBO;
+GLuint FT_VAO, FT_VBO;
 
 // STATE MACHINE (could / should probably encapsulate this in a struct)
 bool wrongPasswordStatus;
 bool shouldExitStatus;
+
+// Character
+typedef struct
+{
+    GLuint     TextureID;  // ID handle of the glyph texture
+    glm::ivec2 Size;       // size of glyph
+    glm::ivec2 Bearing;    // offset from baseline to left/top of glyph
+    GLuint     Advance;    // offset to advance to next glyph
+} _character_t;
+
 
 
 // FUNCTIONS
@@ -183,7 +194,7 @@ void RenderLoop_Incorrect()
 int main()
 {
     // WINDOW
-    win = window::create_window("PauseScreen", 1380, ASPECT_RATIO_16_9); // 1380
+    win = window::create_window("PauseScreen", 400, ASPECT_RATIO_16_9); // 1380
 
     // KEY EVENTS
     glfwSetKeyCallback(win->window, key_callback);
@@ -200,7 +211,86 @@ int main()
     tex0 = new Texture("assets|images|container.jpg", tex_options);
     tex1 = new Texture("assets|images|skull-hd.jpg", tex_options);
 
+    // CHARACTERS
+    FT_Library ft;
+    if (FT_Init_FreeType(&ft))
+    {
+        std::cerr << "ERROR::FREETYPE: Could not init FreeType Library" << std::endl;
+    }
+    FT_Face face;
+    if (FT_New_Face(ft, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0, &face))
+    {
+        std::cerr << "ERROR::FREETYPE: Failed to load font" << std::endl;
+    }
 
+    // width and height parameters, 0 means auto
+    FT_Set_Pixel_Sizes(face, 0, 48);
+
+    // set the glyph 'X' as the active glyph
+    //
+    // using FT_LOAD_RENDER as flag tells FreeType to create an 8-bit greyscale
+    // bitmap image that can be acessed as face->glyph->bitmap
+    if (FT_Load_Char(face, 'X', FT_LOAD_RENDER))
+    {
+        std::cerr << "ERROR::FREETYPE: Failed to load Glyph" << std::endl;
+    }
+
+    // list of characters
+    std::map<GLchar, _character_t> Characters;
+
+    // disable byte-alignment restriction
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    // create textures for each glyph and store them in the container for later use
+    for (GLubyte c = 0; c < 128; c++)
+    {
+        // load character glyph
+        if (FT_Load_Char(face, c, FT_LOAD_RENDER))
+        {
+            std::cerr << "ERROR::FREETYPE: Failed to load glyph '"
+                      << c << "'" << std::endl;
+            continue;
+        }
+
+        // generate texture
+        GLuint texture;
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, face->glyph->bitmap.width,
+                     face->glyph->bitmap.rows, 0, GL_RED, GL_UNSIGNED_BYTE,
+                     face->glyph->bitmap.buffer);
+
+        // set texture parameters
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        // store the character for later use
+        _character_t character = {
+            texture,
+            glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
+            glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
+            face->glyph->advance.x
+        };
+        Characters.insert(std::pair<GLchar, _character_t>(c, character));
+    }
+
+    // free memory when done processing the glyphs
+    FT_Done_Face(face);
+    FT_Done_FreeType(ft);
+
+
+    // vertex attributes (for fonts)
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glm::mat4 projection = glm::ortho(0.0f, 800.0f, 0.0f, 600.0f);
+
+
+
+
+    // vertex attributes (for background image)
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
     glGenBuffers(1, &EBO);
