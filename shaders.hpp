@@ -10,6 +10,8 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+
+#include "error.hpp"
 #include "fileIO.hpp"
 
 namespace shaders
@@ -28,19 +30,19 @@ namespace shaders
         switch (type)
         {
         case GL_VERTEX_SHADER:
-            std::cout << "Compiling vertex shader" << std::endl;
+            PRINT_MSG_COUT("Compiling vertex shader");
             break;
         case GL_GEOMETRY_SHADER:
-            std::cout << "Compiling geometry shader" << std::endl;
+            PRINT_MSG_COUT("Compiling geometry shader");
             break;
         case GL_FRAGMENT_SHADER:
-            std::cout << "Compiling fragment shader" << std::endl;
+            PRINT_MSG_COUT("Compiling fragment shader");
             break;
         case GL_COMPUTE_SHADER:
         case GL_TESS_CONTROL_SHADER:
         case GL_TESS_EVALUATION_SHADER:
         default:
-            std::cout << "Error: Unrecognized shader type" << std::endl;
+            PRINT_MSG_CERR("Error: Unrecognized shader type");
             return 0;
         }
         glShaderSource(shader, 1, &shader_src, NULL);
@@ -58,7 +60,7 @@ namespace shaders
             std::vector<GLchar> shader_err((logLength > 1) ? logLength : 1);
             glGetShaderInfoLog(shader, logLength, NULL, &shader_err[0]);
 
-            std::cout << &shader_err[0] << std::endl;
+            PRINT_MSG_CERR(&shader_err[0]);
         }
 
         return shader;
@@ -78,7 +80,7 @@ namespace shaders
         GLuint shd_fragment = loadShader(GL_FRAGMENT_SHADER, fragment.c_str());
 
         // link the shaders together
-        std::cout << "linking shader program" << std::endl;
+        PRINT_MSG_COUT("linking shader program");
         GLuint program = glCreateProgram();
         glAttachShader(program, shd_vertex);
         glAttachShader(program, shd_geometry);
@@ -96,7 +98,7 @@ namespace shaders
             glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
             std::vector<GLchar> programError( (logLength > 1) ? logLength : 1 );
             glGetProgramInfoLog(program, logLength, NULL, &programError[0]);
-            std::cout << &programError[0] << std::endl;
+            PRINT_MSG_CERR(&programError[0]);
         }
 
         // perform cleanup
@@ -113,8 +115,10 @@ namespace shaders
         GLint result = glGetUniformLocation(shader_program, uniform_name);
         if(result < 0)
         {
-            std::cout << "Could not find uniform variable '"
-                      << uniform_name << "'" << std::endl;
+            std::string msg = "Could not find uniform variable '";
+            msg += uniform_name;
+            msg += "'";
+            PRINT_MSG_CERR(msg);
         }
         return result;
     }

@@ -20,8 +20,11 @@ namespace fileIO
         std::ifstream fileStream(path, std::ios::in);
 
         if(!fileStream.is_open()) {
-            std::cerr << "Could not read file '"
-                      << path << "'." << std::endl;
+            std::string msg = "Could not read file '";
+            msg += path;
+            msg += "'.";
+
+            PRINT_MSG_CERR(msg);
             return "";
         }
 

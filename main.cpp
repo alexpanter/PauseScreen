@@ -20,14 +20,17 @@
 
 // STANDARD
 #include <iostream>
+#include <fstream>
 #include <string.h>
 #include <string>
 #include <map>
 
 // CUSTOM
+#include "error.hpp"
 #include "shaders.hpp"
 #include "window.hpp"
 #include "texture.hpp"
+
 
 
 
@@ -56,6 +59,8 @@ GLuint shader_program;
 Texture* tex0;
 Texture* tex1;
 
+glm::mat4 projection;
+
 // buffer objects
 GLuint VAO, VBO, EBO;
 GLuint FT_VAO, FT_VBO;
@@ -81,6 +86,14 @@ void resetInputMethods()
     readIndex = 0;
     memset(passwordBuffer, '\0', MAX_PASSWORD_BUFFER_SIZE);
 }
+void printBuffer()
+{
+    std::string msg = "entry: '";
+    msg += passwordBuffer;
+    msg += "'";
+
+    PRINT_MSG_COUT(msg);
+}
 
 void insertChar(int ch)
 {
@@ -89,7 +102,7 @@ void insertChar(int ch)
         passwordBuffer[readIndex++] = ch;
     }
 
-    std::cout << "entry: '" << passwordBuffer << "'" << std::endl;
+    printBuffer();
 }
 
 void deleteChar()
@@ -100,19 +113,19 @@ void deleteChar()
         passwordBuffer[--readIndex] = '\0';
     }
 
-    std::cout << "entry: '" << passwordBuffer << "'" << std::endl;
+    printBuffer();
 }
 
 bool testPassword()
 {
     if(strncmp(password.c_str(), passwordBuffer, MAX_PASSWORD_BUFFER_SIZE) == 0)
     {
-        std::cout << "correct password!" << std::endl;
+        PRINT_MSG_COUT("correct password!");
         shouldExitStatus = true;
         return true;
     }
 
-    std::cout << "invalid password!" << std::endl;
+    PRINT_MSG_CERR("invalid password!");
     resetInputMethods();
     wrongPasswordStatus = true;
     return false;
@@ -149,7 +162,7 @@ void character_callback(GLFWwindow* window, unsigned int codepoint)
 
 void RenderLoop_Incorrect()
 {
-    std::cout << "Entering RenderLoop_Incorrect" << std::endl;
+    PRINT_MSG_COUT("Entering RenderLoop_Incorrect");
 
     // some timer structure ...
     const double nowTime = glfwGetTime();
@@ -186,7 +199,7 @@ void RenderLoop_Incorrect()
         passedTime = glfwGetTime();
     }
 
-    std::cout << "Exiting RenderLoop_Incorrect" << std::endl;
+    PRINT_MSG_COUT("Exiting RenderLoop_Incorrect");
     wrongPasswordStatus = false;
 }
 
@@ -215,25 +228,16 @@ int main()
     FT_Library ft;
     if (FT_Init_FreeType(&ft))
     {
-        std::cerr << "ERROR::FREETYPE: Could not init FreeType Library" << std::endl;
+        PRINT_MSG_CERR("FreeType: Could not init FreeType Library");
     }
     FT_Face face;
     if (FT_New_Face(ft, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0, &face))
     {
-        std::cerr << "ERROR::FREETYPE: Failed to load font" << std::endl;
+        PRINT_MSG_CERR("FreeType: Failed to load font");
     }
 
     // width and height parameters, 0 means auto
     FT_Set_Pixel_Sizes(face, 0, 48);
-
-    // set the glyph 'X' as the active glyph
-    //
-    // using FT_LOAD_RENDER as flag tells FreeType to create an 8-bit greyscale
-    // bitmap image that can be acessed as face->glyph->bitmap
-    if (FT_Load_Char(face, 'X', FT_LOAD_RENDER))
-    {
-        std::cerr << "ERROR::FREETYPE: Failed to load Glyph" << std::endl;
-    }
 
     // list of characters
     std::map<GLchar, _character_t> Characters;
@@ -244,11 +248,16 @@ int main()
     // create textures for each glyph and store them in the container for later use
     for (GLubyte c = 0; c < 128; c++)
     {
-        // load character glyph
+        // load character glyph, set c as the active glyph
+        //
+        // using FT_LOAD_RENDER as flag tells FreeType to create an 8-bit greyscale
+        // bitmap image that can be acessed as face->glyph->bitmap
         if (FT_Load_Char(face, c, FT_LOAD_RENDER))
         {
-            std::cerr << "ERROR::FREETYPE: Failed to load glyph '"
-                      << c << "'" << std::endl;
+            std::string msg = "FreeType: Failed to load glyph '";
+            msg += c;
+            msg += "'";
+            PRINT_MSG_CERR(msg);
             continue;
         }
 
@@ -285,8 +294,8 @@ int main()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glm::mat4 projection = glm::ortho(0.0f, 800.0f, 0.0f, 600.0f);
-
+    projection = glm::ortho(0.0f, (GLfloat)win->width,
+                            0.0f, (GLfloat)win->height);
 
 
 
