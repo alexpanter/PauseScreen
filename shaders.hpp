@@ -67,7 +67,46 @@ namespace shaders
     }
 
     // create shaders, link them together, return the linked program
-    GLuint loadShaders(const char* path)
+    GLuint loadShadersVF(const char* path)
+    {
+        std::string shader_dir = fileIO::getPlatformPath(path);
+        std::string vertex (shader_dir + "vertex.shd");
+        std::string fragment (shader_dir + "fragment.shd");
+
+        // retrieve all shaders
+        GLuint shd_vertex = loadShader(GL_VERTEX_SHADER, vertex.c_str());
+        GLuint shd_fragment = loadShader(GL_FRAGMENT_SHADER, fragment.c_str());
+
+        // link the shaders together
+        PRINT_MSG_COUT("linking shader program");
+        GLuint program = glCreateProgram();
+        glAttachShader(program, shd_vertex);
+        glAttachShader(program, shd_fragment);
+        glLinkProgram(program);
+
+        // check if linking was successful
+        GLint result = GL_FALSE;
+        glGetProgramiv(program, GL_LINK_STATUS, &result);
+
+        // if linking did not succeed, print the error message
+        if(!result)
+        {
+            int logLength;
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+            std::vector<GLchar> programError( (logLength > 1) ? logLength : 1 );
+            glGetProgramInfoLog(program, logLength, NULL, &programError[0]);
+            PRINT_MSG_CERR(&programError[0]);
+        }
+
+        // perform cleanup
+        glDeleteShader(shd_vertex);
+        glDeleteShader(shd_fragment);
+
+        return program;
+    }
+
+    // create shaders, link them together, return the linked program
+    GLuint loadShadersVGF(const char* path)
     {
         std::string shader_dir = fileIO::getPlatformPath(path);
         std::string vertex (shader_dir + "vertex.shd");

@@ -10,6 +10,7 @@
 // GLM
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 // SOIL
 #include <SOIL/SOIL.h>
@@ -56,6 +57,7 @@ char passwordBuffer[MAX_PASSWORD_BUFFER_SIZE];
 unsigned short int readIndex;
 
 GLuint shader_program;
+GLuint shader_fonts;
 Texture* tex0;
 Texture* tex1;
 
@@ -64,6 +66,8 @@ glm::mat4 projection;
 // buffer objects
 GLuint VAO, VBO, EBO;
 GLuint FT_VAO, FT_VBO;
+
+std::string text_text = "TEXT";
 
 // STATE MACHINE (could / should probably encapsulate this in a struct)
 bool wrongPasswordStatus;
@@ -75,7 +79,7 @@ typedef struct
     GLuint     TextureID;  // ID handle of the glyph texture
     glm::ivec2 Size;       // size of glyph
     glm::ivec2 Bearing;    // offset from baseline to left/top of glyph
-    GLuint     Advance;    // offset to advance to next glyph
+    long int   Advance;    // offset to advance to next glyph
 } _character_t;
 
 
@@ -159,6 +163,61 @@ void character_callback(GLFWwindow* window, unsigned int codepoint)
 }
 
 
+void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
+                std::string& text, glm::vec2 coords, GLfloat scale, glm::vec3 color)
+{
+    // activate the shader
+    glUseProgram(shader);
+    glUniform3f(glGetUniformLocation(shader, "textColor"), color.x, color.y, color.z);
+    glUniformMatrix4fv(glGetUniformLocation(shader, "projection"), 1, GL_FALSE,
+                       glm::value_ptr(projection));
+    glBindVertexArray(FT_VAO);
+
+    // iterate through all characters
+    std::string::const_iterator c;
+    for (c = text.begin(); c != text.end(); c++)
+    {
+        _character_t ch = characters[*c];
+
+        GLfloat xpos = coords.x + ch.Bearing.x * scale;
+        GLfloat ypos = coords.y - (ch.Size.y - ch.Bearing.y) * scale;
+
+        GLfloat w = ch.Size.x * scale;
+        GLfloat h = ch.Size.y * scale;
+
+        // update VBO for each character
+        GLfloat vertices[6][4] {
+            { xpos,     ypos + h,   0.0f, 0.0f },
+            { xpos,     ypos,       0.0f, 1.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+            { xpos,     ypos + h,   0.0f, 0.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+            { xpos + w, ypos + h,   1.0f, 0.0f }
+        };
+
+        // render glyph texture over quad
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ch.TextureID);
+        glUniform1i(glGetUniformLocation(shader, "text"), ch.TextureID);
+
+        // update contents of VBO memory
+        glBindBuffer(GL_ARRAY_BUFFER, FT_VBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        // render quad
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // advance cursors for next glyph (note: advance is number of 1/64 pixels)
+        // bitshift by 6 to get value in pixels (2^6 = 64)
+        coords.x += (ch.Advance >> 6) * scale;
+    }
+    // unbind
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+
 
 void RenderLoop_Incorrect()
 {
@@ -207,7 +266,7 @@ void RenderLoop_Incorrect()
 int main()
 {
     // WINDOW
-    win = window::create_window("PauseScreen", 400, ASPECT_RATIO_16_9); // 1380
+    win = window::create_window("PauseScreen", 800, ASPECT_RATIO_4_3); // 1380
 
     // KEY EVENTS
     glfwSetKeyCallback(win->window, key_callback);
@@ -216,7 +275,8 @@ int main()
     shouldExitStatus = false;
 
     // SHADERS
-    shader_program = shaders::loadShaders("shaders|container");
+    shader_program = shaders::loadShadersVGF("shaders|container");
+    shader_fonts = shaders::loadShadersVF("shaders|font");
     glUseProgram(shader_program);
 
     // TEXTURES
@@ -231,7 +291,7 @@ int main()
         PRINT_MSG_CERR("FreeType: Could not init FreeType Library");
     }
     FT_Face face;
-    if (FT_New_Face(ft, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0, &face))
+    if (FT_New_Face(ft, "/usr/share/fonts/truetype/gentium/Gentium-I.ttf", 0, &face))
     {
         PRINT_MSG_CERR("FreeType: Failed to load font");
     }
@@ -284,6 +344,7 @@ int main()
         };
         Characters.insert(std::pair<GLchar, _character_t>(c, character));
     }
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     // free memory when done processing the glyphs
     FT_Done_Face(face);
@@ -296,6 +357,21 @@ int main()
 
     projection = glm::ortho(0.0f, (GLfloat)win->width,
                             0.0f, (GLfloat)win->height);
+
+    glGenVertexArrays(1, &FT_VAO);
+    glGenBuffers(1, &FT_VBO);
+    glBindVertexArray(FT_VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, FT_VBO);
+
+    // the 2D quad requires 6 vertices of 4 floats each, so reserve 6 * 4 floats
+    // of memory. Because VBO memory will be updated quite often, GL_DYNAMIC_DRAW
+    // shall suffice.
+    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
+
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), 0);
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 
 
 
@@ -331,23 +407,36 @@ int main()
 
     while(!glfwWindowShouldClose(win->window))
     {
-        if(wrongPasswordStatus)
-        {
-            RenderLoop_Incorrect();
-            continue;
-        }
-        if(shouldExitStatus)
-        {
-            break;
-        }
+        // glUseProgram(shader_program);
 
-        //glfwPollEvents();
-        glfwWaitEvents(); // puts the main thread to sleep
+        // if(wrongPasswordStatus)
+        // {
+        //     RenderLoop_Incorrect();
+        //     continue;
+        // }
+        // if(shouldExitStatus)
+        // {
+        //     break;
+        // }
+
+        
 
         glClearColor(0.01f, 0.01f, 0.01f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        // void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
+        //         std::string& text, glm::vec2 coords, GLfloat scale, glm::vec3 color)
+        std::string str = "(C) LearnOpenGL.com";
+        RenderText(shader_fonts, Characters, text_text, glm::vec2(25.0f, 25.0f),
+                   1.0f, glm::vec3(0.5f, 0.8f, 0.2f));
+        RenderText(shader_fonts, Characters, str, glm::vec2(540.0f, 570.0f),
+                   0.5f, glm::vec3(0.3, 0.7f, 0.9f));
+
         glfwSwapBuffers(win->window);
+
+        glfwPollEvents();
+        // glfwWaitEvents(); // puts the main thread to sleep
+
     }
 
     // do proper cleanup of any allocated resources
