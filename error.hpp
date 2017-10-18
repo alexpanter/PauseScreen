@@ -4,9 +4,9 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <string>
 
-//using std::string;
 
 
 // #define IO_REDIRECT
@@ -21,13 +21,13 @@ typedef const char* c;
 
 void write_msg(_msg_type_t type, c msg, c _file, int _line)
 {
-    std::string t("");
+    std::stringstream t;
     switch(type) {
     case MSG_CERR:
-        t += "ERROR: "; break;
-    case MSG_COUT:
-        t += "MESSAGE: "; break;
+        t << "ERROR: '" << msg << "', in " << _file << ": " << _line;
+        break;
     default:
+        t << msg;
         break;
     }
 
@@ -35,15 +35,15 @@ void write_msg(_msg_type_t type, c msg, c _file, int _line)
     static std::ofstream err_file;
     err_file.open(ERROR_FILE);
 
-    err_file << t << "'" << msg << "', in " << _file << ": " << _line << std::endl;
+    err_file << t.str() << std::endl;
     err_file.close();
 #else
     switch(type) {
     case MSG_CERR:
-        std::cerr << t << "'" << msg << "', in " << _file << ": " << _line << std::endl;
+        std::cerr << t.str() << std::endl;
         break;
     case MSG_COUT:
-        std::cout << t << "'" << msg << "', in " << _file << ": " << _line << std::endl;
+        std::cout << t.str() << std::endl;
         break;
     default:
         break;

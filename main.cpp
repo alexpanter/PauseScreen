@@ -67,8 +67,8 @@ glm::mat4 projection;
 GLuint VAO, VBO, EBO;
 GLuint FT_VAO, FT_VBO;
 
-std::string text_text = "TEXT";
-std::string text_logo = "(C) LearnOpenGL.com";
+const std::string text_text = "TEXT";
+const std::string text_logo = "(C) LearnOpenGL.com";
 
 // STATE MACHINE (could / should probably encapsulate this in a struct)
 bool wrongPasswordStatus;
@@ -165,7 +165,7 @@ void character_callback(GLFWwindow* window, unsigned int codepoint)
 
 
 void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
-                std::string& text, glm::vec2 coords, GLfloat scale, glm::vec3 color)
+                const std::string& text, glm::vec2 coords, GLfloat scale, glm::vec3 color)
 {
     // activate the shader
     glUseProgram(shader);
@@ -234,6 +234,7 @@ void RenderLoop_Incorrect()
     PRINT_MSG_COUT("Entering RenderLoop_Incorrect");
 
     // some timer structure ...
+    glfwSetTime(0.0);
     const double nowTime = glfwGetTime();
     double passedTime = nowTime;
 
@@ -287,7 +288,6 @@ int main()
     // SHADERS
     shader_program = shaders::loadShadersVGF("shaders|container");
     shader_fonts = shaders::loadShadersVF("shaders|font");
-    glUseProgram(shader_program);
 
     // TEXTURES
     unsigned long tex_options = TEX_GENERATE_MIPMAP | TEX_NEAREST_FILTER;
@@ -362,6 +362,8 @@ int main()
 
 
     // vertex attributes (for fonts)
+    glUseProgram(shader_fonts);
+
     glEnable(GL_CULL_FACE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -388,6 +390,8 @@ int main()
 
 
     // vertex attributes (for background image)
+    glUseProgram(shader_program);
+
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
     glGenBuffers(1, &EBO);
@@ -417,7 +421,22 @@ int main()
     glBindVertexArray(0);
 
 
-    glClearColor(0.01f, 0.01f, 0.01f, 1.0f);
+
+    while(!glfwWindowShouldClose(win->window))
+    {
+        // glUseProgram(shader_program);
+
+        if(wrongPasswordStatus)
+        {
+            RenderLoop_Incorrect();
+            continue;
+        }
+        if(shouldExitStatus)
+        {
+            break;
+        }
+
+        glClearColor(0.01f, 0.01f, 0.01f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
         // void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
@@ -427,25 +446,11 @@ int main()
         RenderText(shader_fonts, Characters, text_logo, glm::vec2(540.0f, 570.0f),
                    0.5f, glm::vec3(0.3, 0.7f, 0.9f));
 
-        glfwSwapBuffers(win->window);
-
-    while(!glfwWindowShouldClose(win->window))
-    {
-        // glUseProgram(shader_program);
-
-        // if(wrongPasswordStatus)
-        // {
-        //     RenderLoop_Incorrect();
-        //     continue;
-        // }
-        // if(shouldExitStatus)
-        // {
-        //     break;
-        // }
 
         glfwPollEvents();
         // glfwWaitEvents(); // puts the main thread to sleep
 
+        glfwSwapBuffers(win->window);
     }
 
     // do proper cleanup of any allocated resources
