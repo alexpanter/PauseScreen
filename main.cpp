@@ -139,6 +139,8 @@ bool testPassword()
 // handle user input on the keyboard (last arg is 'modifier_bits')
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
+    if(wrongPasswordStatus) { return; }
+
     if(action == GLFW_PRESS)
     {
         switch(key)
@@ -160,6 +162,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 // this callback function receives key presses as unicode points
 void character_callback(GLFWwindow* window, unsigned int codepoint)
 {
+    if(wrongPasswordStatus) { return; }
     insertChar(codepoint);
 }
 
@@ -241,6 +244,8 @@ void RenderLoop_Incorrect()
     // this loop should run for 5 seconds
     while(passedTime - nowTime < 5.0)
     {
+        glfwPollEvents();
+
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
@@ -282,6 +287,7 @@ int main()
     // KEY EVENTS
     glfwSetKeyCallback(win->window, key_callback);
     glfwSetCharCallback(win->window, character_callback);
+    glfwSetInputMode(win->window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     resetInputMethods();
     shouldExitStatus = false;
 
