@@ -31,7 +31,7 @@
 #include "shaders.hpp"
 #include "window.hpp"
 #include "texture.hpp"
-
+#include "buffer.cpp"
 
 
 
@@ -50,11 +50,7 @@ GLuint indices[] = {  // Note that we start from 0!
 
 // GLOBALS
 window_info* win;
-const std::string password("hej");
-
-#define MAX_PASSWORD_BUFFER_SIZE 50
-char passwordBuffer[MAX_PASSWORD_BUFFER_SIZE];
-unsigned short int readIndex;
+Buffer psw_buffer(50, "hej");
 
 GLuint shader_program;
 GLuint shader_fonts;
@@ -67,12 +63,10 @@ glm::mat4 projection;
 GLuint VAO, VBO, EBO;
 GLuint FT_VAO, FT_VBO;
 
-const std::string text_text = "TEXT";
-const std::string text_logo = "(C) LearnOpenGL.com";
-
 // STATE MACHINE (could / should probably encapsulate this in a struct)
 bool wrongPasswordStatus;
 bool shouldExitStatus;
+
 
 // Character
 typedef struct
@@ -83,58 +77,11 @@ typedef struct
     long int   Advance;    // offset to advance to next glyph
 } _character_t;
 
+// list of characters
+std::map<GLchar, _character_t> Characters;
+const std::string text_text = "TEXT";
+const std::string text_logo = "(C) LearnOpenGL.com";
 
-
-// FUNCTIONS
-void resetInputMethods()
-{
-    readIndex = 0;
-    memset(passwordBuffer, '\0', MAX_PASSWORD_BUFFER_SIZE);
-}
-void printBuffer()
-{
-    std::string msg = "entry: '";
-    msg += passwordBuffer;
-    msg += "'";
-
-    PRINT_MSG_COUT(msg);
-}
-
-void insertChar(int ch)
-{
-    if(!(readIndex >= MAX_PASSWORD_BUFFER_SIZE))
-    {
-        passwordBuffer[readIndex++] = ch;
-    }
-
-    printBuffer();
-}
-
-void deleteChar()
-{
-    // good for deletion!
-    if(readIndex > 0)
-    {
-        passwordBuffer[--readIndex] = '\0';
-    }
-
-    printBuffer();
-}
-
-bool testPassword()
-{
-    if(strncmp(password.c_str(), passwordBuffer, MAX_PASSWORD_BUFFER_SIZE) == 0)
-    {
-        PRINT_MSG_COUT("correct password!");
-        shouldExitStatus = true;
-        return true;
-    }
-
-    PRINT_MSG_CERR("invalid password!");
-    resetInputMethods();
-    wrongPasswordStatus = true;
-    return false;
-}
 
 // handle user input on the keyboard (last arg is 'modifier_bits')
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -149,10 +96,15 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             glfwSetWindowShouldClose(window, GL_TRUE);
             break;
         case GLFW_KEY_BACKSPACE:
-            deleteChar();
+            psw_buffer.Delete();
             break;
         case GLFW_KEY_ENTER:
-            testPassword();
+            if(psw_buffer.Test()) {
+                shouldExitStatus = true;
+            } else {
+                wrongPasswordStatus = true;
+            }
+            break;
         default:
             break;
         }
@@ -163,7 +115,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 void character_callback(GLFWwindow* window, unsigned int codepoint)
 {
     if(wrongPasswordStatus) { return; }
-    insertChar(codepoint);
+    psw_buffer.Insert(codepoint);
+    //psw_buffer.Print();
 }
 
 
@@ -188,15 +141,6 @@ void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
         GLfloat ypos = coords.y - (ch.Size.y - ch.Bearing.y) * scale;
         GLfloat w = ch.Size.x * scale;
         GLfloat h = ch.Size.y * scale;
-
-        // std::string msg = "const iterator, *c: '";
-        // msg += *c;
-        // msg += "', pos(x,y): (";
-        // msg += xpos;
-        // msg += ",";
-        // msg += ypos;
-        // msg += ")";
-        // PRINT_MSG_COUT(msg);
 
         // update VBO for each character
         GLfloat vertices[6][4] {
@@ -277,6 +221,39 @@ void RenderLoop_Incorrect()
     PRINT_MSG_COUT("Exiting RenderLoop_Incorrect");
     wrongPasswordStatus = false;
 }
+void RenderLoop_Default()
+{
+    while(!glfwWindowShouldClose(win->window))
+    {
+        // glUseProgram(shader_program);
+
+        if(wrongPasswordStatus)
+        {
+            RenderLoop_Incorrect();
+            continue;
+        }
+        if(shouldExitStatus)
+        {
+            break;
+        }
+
+        glClearColor(0.01f, 0.01f, 0.01f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
+        //         std::string& text, glm::vec2 coords, GLfloat scale, glm::vec3 color)
+        RenderText(shader_fonts, Characters, text_text, glm::vec2(25.0f, 25.0f),
+                   1.0f, glm::vec3(0.5f, 0.8f, 0.2f));
+        RenderText(shader_fonts, Characters, text_logo, glm::vec2(540.0f, 570.0f),
+                   0.5f, glm::vec3(0.3, 0.7f, 0.9f));
+
+
+        glfwPollEvents();
+        // glfwWaitEvents(); // puts the main thread to sleep
+
+        glfwSwapBuffers(win->window);
+    }
+}
 
 
 int main()
@@ -288,7 +265,6 @@ int main()
     glfwSetKeyCallback(win->window, key_callback);
     glfwSetCharCallback(win->window, character_callback);
     glfwSetInputMode(win->window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    resetInputMethods();
     shouldExitStatus = false;
 
     // SHADERS
@@ -314,9 +290,6 @@ int main()
 
     // width and height parameters, 0 means auto
     FT_Set_Pixel_Sizes(face, 0, 48);
-
-    // list of characters
-    std::map<GLchar, _character_t> Characters;
 
     // disable byte-alignment restriction
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -428,36 +401,10 @@ int main()
 
 
 
-    while(!glfwWindowShouldClose(win->window))
-    {
-        // glUseProgram(shader_program);
-
-        if(wrongPasswordStatus)
-        {
-            RenderLoop_Incorrect();
-            continue;
-        }
-        if(shouldExitStatus)
-        {
-            break;
-        }
-
-        glClearColor(0.01f, 0.01f, 0.01f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        // void RenderText(GLuint shader, std::map<GLchar, _character_t>& characters,
-        //         std::string& text, glm::vec2 coords, GLfloat scale, glm::vec3 color)
-        RenderText(shader_fonts, Characters, text_text, glm::vec2(25.0f, 25.0f),
-                   1.0f, glm::vec3(0.5f, 0.8f, 0.2f));
-        RenderText(shader_fonts, Characters, text_logo, glm::vec2(540.0f, 570.0f),
-                   0.5f, glm::vec3(0.3, 0.7f, 0.9f));
+    // Enter default render loop
+    RenderLoop_Default();
 
 
-        glfwPollEvents();
-        // glfwWaitEvents(); // puts the main thread to sleep
-
-        glfwSwapBuffers(win->window);
-    }
 
     // do proper cleanup of any allocated resources
     glDeleteVertexArrays(1, &VAO);
